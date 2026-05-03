@@ -21,7 +21,7 @@ struct Config {
     char wifiSsid[33];             // WiFi SSID (max 32 chars)
     char wifiPassword[65];         // WiFi password (max 64 chars)
     char nsApiKey[65];              // NS API subscription key
-    char stationCode[5];            // Station code (e.g., "HTNC")
+    char stationCode[5];            // Station code (e.g., "AMST")
     int walkTime;                   // Walk time in minutes
     int bikeTime;                   // Bike time in minutes
     int busTime;                    // Bus time in minutes
@@ -36,7 +36,7 @@ struct Config {
         strcpy(wifiSsid, "");
         strcpy(wifiPassword, "");
         strcpy(nsApiKey, "");
-        strcpy(stationCode, "HTNC");
+        strcpy(stationCode, "");
         walkTime = 20;
         bikeTime = 8;
         busTime = 12;
@@ -107,7 +107,7 @@ public:
 
     /**
      * @brief Set station code
-     * @param code Station code (e.g., "HTNC")
+     * @param code Station code (e.g., "AMST")
      */
     void setStationCode(const String& code);
 

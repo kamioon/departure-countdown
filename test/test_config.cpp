@@ -18,7 +18,7 @@ void test_default_config(void) {
 
     TEST_ASSERT_EQUAL_STRING("", config.wifiSsid);
     TEST_ASSERT_EQUAL_STRING("", config.wifiPassword);
-    TEST_ASSERT_EQUAL_STRING("HTNC", config.stationCode);
+    TEST_ASSERT_EQUAL_STRING("", config.stationCode);
     TEST_ASSERT_EQUAL(15, config.walkTime);
     TEST_ASSERT_EQUAL(8, config.bikeTime);
     TEST_ASSERT_EQUAL(12, config.busTime);
@@ -116,7 +116,7 @@ void test_factory_reset(void) {
 
     // Should be back to defaults
     Config& config = configManager->getConfig();
-    TEST_ASSERT_EQUAL_STRING("HTNC", config.stationCode);
+    TEST_ASSERT_EQUAL_STRING("", config.stationCode);
     TEST_ASSERT_EQUAL(15, config.walkTime);
     TEST_ASSERT_EQUAL(WALK, config.activeMode);
 }

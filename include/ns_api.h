@@ -64,7 +64,7 @@ public:
 
     /**
      * @brief Fetch departures for a station
-     * @param stationCode Station code (e.g., "HTNC")
+     * @param stationCode Station code (e.g., "AMST")
      * @param maxDepartures Maximum number of departures to fetch
      * @return Number of departures fetched, -1 on error
      */

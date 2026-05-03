@@ -24,8 +24,8 @@ void test_begin_with_empty_key(void) {
 
 // Test API URL generation
 void test_get_api_url(void) {
-    String url = NSApiClient::getApiUrl("HTNC", 5);
-    TEST_ASSERT_TRUE(url.indexOf("station=HTNC") > 0);
+    String url = NSApiClient::getApiUrl("AMST", 5);
+    TEST_ASSERT_TRUE(url.indexOf("station=AMST") > 0);
     TEST_ASSERT_TRUE(url.indexOf("maxJourneys=5") > 0);
 }
 

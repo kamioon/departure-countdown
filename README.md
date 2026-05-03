@@ -1,401 +1,388 @@
-# Departure Countdown System
+# Smart Departure Countdown
 
-ESP32-based smart departure countdown timer with real-time train departure tracking using NS (Nederlandse Spoorwegen) API.
+A real-time train departure countdown device built on the ESP32-S3. It connects to the [NS (Dutch Railways) API](https://apiportal.ns.nl/), calculates exactly when you need to leave home to catch your next train, and shows a live countdown on an 8-module MAX7219 LED matrix display.
+
+Supports Walk, Bike, and Bus travel modes so the countdown automatically adjusts to your commute. A built-in web UI lets you configure the device from any browser on your local network. A REST API makes it easy to integrate with smarthome platforms (Home Assistant, Node-RED, etc.).
+
+---
 
 ## Features
 
-- **Real-time Departure Data**: Fetches live train departures from NS API
-- **Smart Countdown**: Calculates when you need to leave based on:
-  - Real-time train departure times
-  - Travel time to station (walk/bike/bus)
-  - Configurable buffer time
-- **MAX7219 LED Matrix Display**: Shows countdown and train information
-- **Multi-modal Transport**: Switch between walk, bike, and bus modes
-- **Alert System**: Audio (buzzer) and visual (RGB LED) alerts
-- **Button Controls**: Easy mode switching and manual refresh
-- **Comprehensive Tests**: Unit tests for all core modules
-- **How It Works**: Overview of the code structure and data flow ([HOW_IT_WORKS.md](HOW_IT_WORKS.md))
+- Live countdown timer ("leave in MM:SS") with automatic DST handling (Amsterdam timezone)
+- Alternates between Walk and Bike countdowns every 5 seconds
+- Urgent mode (<60 s to leave): animated walking/cycling icon on the rightmost display module
+- Background API fetch via FreeRTOS — display never freezes or blanks during a network request
+- DS3231 RTC keeps time accurate during brief WiFi outages
+- Web UI on port 80 for all configuration, no app needed
+- REST API for smarthome integration (CORS-enabled, JSON)
+- All credentials stored in ESP32 NVS (flash), never in source code
+- Unit test suite runnable on any desktop (`pio test -e native`)
 
-## Hardware Requirements
+---
 
-### Core Components
-- **ESP32-S3-DevKitC-1** Development Board
-- MAX7219 LED Matrix Display (4x 8x8 modules recommended)
-- Rotary Encoder
-- 3x Push Buttons
-- Buzzer (PWM capable)
-- RGB LED (common cathode)
-- DS3231 RTC Module (optional but recommended)
+## Hardware
 
-### Wiring (see [WIRING_ESP32-S3.md](WIRING_ESP32-S3.md) for complete guide)
+| Component | Description |
+|-----------|-------------|
+| **ESP32-S3-DevKitC-1** | Main microcontroller — dual-core 240 MHz, built-in WiFi, native USB |
+| **MAX7219 8×8 LED Matrix × 8** | FC-16 type modules chained (64×8 dot-matrix display) |
+| **DS3231 RTC Module** | Precision real-time clock with battery backup |
+| **Rotary Encoder** | Navigation input (with push button) |
+| **Push Button × 3** | Start/Refresh, Mode cycle, Factory Reset |
+| **Passive Buzzer** | Audible alert when it's time to leave |
+| **RGB LED** | Optional status indicator |
 
-```
-ESP32-S3       Component
---------       ---------
-GPIO 11        MAX7219 DIN (MOSI)
-GPIO 12        MAX7219 CLK (SCK)
-GPIO 10        MAX7219 CS
-GPIO 4         Encoder CLK
-GPIO 5         Encoder DT
-GPIO 6         Encoder SW
-GPIO 7         Start Button
-GPIO 15        Reset Button
-GPIO 16        Mode Button
-GPIO 17        Buzzer
-GPIO 18        LED Red
-GPIO 8         LED Green
-GPIO 3         LED Blue
-GPIO 1         RTC SDA (I2C)
-GPIO 2         RTC SCL (I2C)
-```
+---
 
-**📋 See [WIRING_ESP32-S3.md](WIRING_ESP32-S3.md) for detailed wiring diagrams and troubleshooting!**
+## Wiring
 
-## Software Architecture
+### MAX7219 Display (SPI)
 
-### Core Modules
+| MAX7219 pin | ESP32-S3 GPIO |
+|-------------|---------------|
+| DIN (MOSI)  | GPIO 11 |
+| CLK (SCK)   | GPIO 12 |
+| CS / LOAD   | GPIO 10 |
 
-1. **Time Manager** ([time_manager.h](include/time_manager.h))
-   - NTP time synchronization
-   - RTC integration for offline accuracy
-   - ISO 8601 datetime parsing
-   - Timezone handling (Europe/Amsterdam)
+Chain all 8 modules in series (DOUT of one → DIN of next). Power from 5 V; add a 10 µF cap on the 5 V rail close to the first module.
 
-2. **Configuration Manager** ([config.h](include/config.h))
-   - Save/load settings to NVS (Preferences)
-   - Station code, API key, travel times
-   - Transport mode and buffer time
-   - Alert preferences
+### DS3231 RTC (I2C)
 
-3. **NS API Client** ([ns_api.h](include/ns_api.h))
-   - HTTP client for NS API integration
-   - JSON response parsing
-   - Departure data extraction
-   - Next train selection logic
+| RTC pin | ESP32-S3 GPIO |
+|---------|---------------|
+| SDA     | GPIO 1 |
+| SCL     | GPIO 2 |
 
-4. **Countdown Calculator** ([countdown_calc.h](include/countdown_calc.h))
-   - Smart "leave home" time calculation
-   - Real-time countdown updates
-   - State management (safe, ready, urgent, etc.)
-   - Edge case handling
+### Buttons & I/O
 
-5. **Display Manager** ([display.h](include/display.h))
-   - MAX7219 LED matrix control
-   - Countdown display (MM:SS format)
-   - Train information scrolling
-   - Transport mode indicators
+| Function | GPIO |
+|----------|------|
+| Rotary encoder CLK | GPIO 4 |
+| Rotary encoder DT  | GPIO 5 |
+| Rotary encoder SW  | GPIO 6 |
+| Start / Refresh button | GPIO 7 |
+| Reset button | GPIO 15 |
+| Mode button  | GPIO 16 |
+| Buzzer (PWM) | GPIO 17 |
+| RGB LED Red  | GPIO 18 |
+| RGB LED Green | GPIO 8 |
+| RGB LED Blue | GPIO 3 |
 
-6. **Alert Manager** ([alerts.h](include/alerts.h))
-   - Audio alert patterns (buzzer)
-   - Visual alerts (RGB LED colors)
-   - State-based triggering
-   - Configurable thresholds
+> **Avoid** GPIO 0 (boot button), GPIO 19/20 (USB D±), and GPIO 26–37 (flash/PSRAM lines).
 
-7. **Input Handler** ([input.h](include/input.h))
-   - Rotary encoder reading
-   - Button debouncing
-   - Short/long press detection
-   - Event queue management
+---
 
-## Getting Started
+## Software Setup
 
-### 1. Prerequisites
+### Prerequisites
 
-- [PlatformIO](https://platformio.org/) installed
-- NS API subscription key (free) from [NS API Portal](https://apiportal.ns.nl/)
-- WiFi credentials
+- [PlatformIO](https://platformio.org/) (VS Code extension or CLI)
+- Free NS API key from [apiportal.ns.nl](https://apiportal.ns.nl/) — subscribe to **Reisinformatie API**
 
-### 2. Configuration
-
-1. Clone this repository
-2. Open in PlatformIO (VS Code or CLI)
-3. Get your NS API key (if you don't already have one):
-   - Visit [NS API Portal](https://apiportal.ns.nl/)
-   - Create free account
-   - Subscribe to "Reisinformatie API"
-   - Copy your subscription key
-
-4. Set configuration via Serial Monitor on first boot (stored in NVS):
-   - WiFi SSID + password
-   - NS API key (optional)
-   - To re-enter later, do a factory reset (hold RESET for ~1s) and enter them again
-
-5. Station code and travel times currently use defaults from code:
-   - Station code (e.g., "HTNC" for Houten Castellum)
-   - Travel times (walk: 20 min, bike: 8 min, bus: 12 min)
-   - Buffer time (default: 2 min)
-   - To change these at runtime, add your own UI or use the `ConfigManager` API and call `save()`.
-
-### 3. Build and Upload
+### Build & Flash
 
 ```bash
-# Build project
-pio run -e esp32-s3-devkitc-1
+git clone https://github.com/kamioon/departure-countdown.git
+cd departure-countdown
 
-# Upload to ESP32-S3
-pio run -e esp32-s3-devkitc-1 -t upload
+# Build and upload
+pio run -e esp32-s3-devkitc-1 --target upload
 
-# Open serial monitor
-pio device monitor -b 115200
+# Open serial monitor (115200 baud)
+pio device monitor
 ```
 
-### 4. Running Tests
+### First-Time Configuration
+
+On first boot the device prompts over Serial:
+
+```
+WiFi SSID: YourNetwork
+WiFi Password (blank for open): ••••••••
+NS API key: ••••••••••••••••••••••••••••••••
+```
+
+Credentials are saved to NVS and survive reboots. After WiFi connects, open the web UI at the IP address shown in the Serial Monitor.
+
+You can also reconfigure everything from the web UI at any time — no reflash needed.
+
+---
+
+## How It Works
+
+```
+Boot
+ ├─ Load config from NVS (Preferences)
+ ├─ Init display → startup animation
+ ├─ Connect WiFi → sync NTP (Amsterdam TZ, DST-aware via POSIX rule)
+ ├─ Start async web server on port 80
+ └─ Trigger first background departure fetch
+
+Main loop (every second)
+ ├─ Try-lock API mutex (non-blocking)
+ │   ├─ Got it   → read fresh departures, cache timestamps, release
+ │   └─ Busy     → use cached timestamps (countdown keeps ticking live)
+ ├─ Calculate "leave time" = departure − travel time − buffer
+ ├─ Update LED matrix: destination | countdown | mode icon
+ └─ Alternate Walk ↔ Bike view every 5 s
+
+Background fetch task (FreeRTOS, every 2 min or on demand)
+ ├─ Holds mutex for the full HTTPS round-trip
+ ├─ Parses NS JSON, stores up to 10 departures
+ └─ Releases mutex → main loop picks up fresh data on next tick
+```
+
+### Display Layout (8 modules, left → right)
+
+```
+ [ DH ] [ 12:34 ] [ W ]   ← normal mode: destination | countdown | mode
+ [ 🚶 ] [ 00:42 ]          ← urgent (<60 s): animated icon + flashing countdown
+```
+
+Destination abbreviations currently in the code: **DH** = Den Haag, **L** = Leiden. Adjust `showCountdown()` in [display_esp32.cpp](src/display_esp32.cpp) for your route.
+
+Mode characters: **W** = Walk, **B** = Bike, **U** = bUs.
+
+---
+
+## Web UI
+
+Open `http://<device-ip>/` in any browser on your local network.
+
+- **Live Status** — walk/bike countdowns with destination names, auto-refreshes every 2 s
+- **Device panel** — chip model, CPU MHz, flash size, free heap, uptime, display connected status
+- **Transport Mode** — one-click Walk / Bike / Bus selector
+- **Configuration form** — station code, travel times, buffer, NS API key, WiFi credentials
+- **Fetch Now** — triggers an immediate background refresh
+
+---
+
+## REST API
+
+All endpoints return `application/json` with CORS headers (`Access-Control-Allow-Origin: *`) for cross-origin smarthome clients.
+
+### `GET /api/status`
+
+Full system snapshot.
+
+```json
+{
+  "wifi": { "connected": true, "rssi": -62, "ip": "192.168.1.x", "ssid": "MyNetwork" },
+  "device": {
+    "chipModel": "ESP32-S3", "chipRevision": 0,
+    "cpuMhz": 240, "flashKb": 8192,
+    "heapFreeKb": 245, "heapTotalKb": 320,
+    "uptimeSeconds": 3600
+  },
+  "peripherals": { "display": true },
+  "fetchInProgress": false,
+  "walk": { "secondsUntilLeave": 312, "direction": "Den Haag Centraal" },
+  "bike": { "secondsUntilLeave": 480, "direction": "Den Haag Centraal" },
+  "mode": "Walk"
+}
+```
+
+### `GET /api/config`
+
+All configuration values. Secret fields are masked as `"***"`.
+
+```json
+{
+  "stationCode": "UT",
+  "walkTime": 20, "bikeTime": 8, "busTime": 12, "bufferTime": 2,
+  "activeMode": "Walk",
+  "audioAlertsEnabled": false, "ledAlertsEnabled": true,
+  "wifiSsid": "MyNetwork", "nsApiKey": "***", "wifiPassword": "***"
+}
+```
+
+### `POST /api/config`
+
+Update any subset of fields. Only send what you want to change.
 
 ```bash
-# Run all tests
-pio test
-
-# Run specific test
-pio test -f test_config
-pio test -f test_countdown_calc
-pio test -f test_time_manager
-pio test -f test_ns_api
+curl -X POST http://<ip>/api/config \
+  -H 'Content-Type: application/json' \
+  -d '{"stationCode":"UT","walkTime":15,"bufferTime":3}'
+# → {"ok":true}
 ```
 
-## Usage
-
-### Button Controls
-
-- **MODE Button (short press)**: Cycle transport mode (Walk → Bike → Bus → Walk)
-- **START Button (short press)**: Force refresh departure data
-- **RESET Button (long press, 1s)**: Factory reset (clears all settings)
-
-### Display States
-
-The LED matrix cycles between:
-1. **Countdown Display**: `L 08:15 W` (Leave in 8:15, Walk mode)
-2. **Train Info**: Scrolling destination, train type, track number
-3. **Status Messages**: WiFi status, errors, etc.
-
-### Alert States
-
-**LED Colors:**
-- 🟢 Green: Safe time (>10 min to leave)
-- 🟡 Yellow: Get ready (5-10 min)
-- 🟠 Orange: Time to go (2-5 min)
-- 🔴 Red (blinking): Leave now! (<2 min)
-- 🔵 Blue: Train delayed
-- 🟣 Purple: Error/no departures
-
-**Audio Alerts:**
-- **Time to leave**: Single long beep
-- **Hurry up** (5 min before departure): Double beep
-- **Train departing** (1 min): Rapid beeps
-
-## Configuration
-
-### Default Settings
-
-```cpp
-Station Code: HTNC (Houten Castellum)
-Walk Time: 20 minutes
-Bike Time: 8 minutes
-Bus Time: 12 minutes
-Active Mode: Walk
-Buffer Time: 2 minutes
-Audio Alerts: Enabled
-LED Alerts: Enabled
-```
-
-### Modifying Settings
-
-Settings are stored in NVS (non-volatile storage) and persist across reboots.
-
-## Secrets and Provisioning
-
-WiFi SSID/password and NS API key are captured at first boot via Serial and saved to NVS.
-They are not hardcoded in the firmware or stored in the repository.
-
-To re-provision, perform a factory reset (hold RESET for ~1s) and enter new values
-when prompted on the Serial Monitor.
-
-
-To change settings programmatically:
-
-```cpp
-configManager.setStationCode("UT");        // Utrecht Centraal
-configManager.setTravelTime(WALK, 20);     // 20 min walk
-configManager.setTravelTime(BIKE, 10);     // 10 min bike
-configManager.setActiveMode(BIKE);          // Switch to bike
-configManager.setBufferTime(5);             // 5 min buffer
-configManager.save();                       // Save to NVS
-```
-
-## API Integration
-
-### NS API Endpoints
-
-The system uses the [NS Reisinformatie API v2](https://apiportal.ns.nl/docs/services/reisinformatie-api/operations/getDepartures):
-
-```
-GET https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/departures
-Headers: Ocp-Apim-Subscription-Key: YOUR_KEY
-Params: station=HTNC, maxJourneys=5
-```
-
-### Station Codes
-
-Common station codes:
-- `HTNC` - Houten Castellum
-- `HT` - Houten
-- `UT` - Utrecht Centraal
-- `ASD` - Amsterdam Centraal
-- `RTD` - Rotterdam Centraal
-- `DH` - Den Haag Centraal
-
-Find more at [NS Stations](https://www.ns.nl/stations)
-
-## Testing
-
-The project includes comprehensive unit tests for all core modules:
-
-### Test Coverage
-
-- **Configuration Manager**: 12 tests
-  - Default config, setters, validation, factory reset
-
-- **Time Manager**: 13 tests
-  - ISO8601 parsing, time formatting, time differences
-
-- **Countdown Calculator**: 16 tests
-  - Leave time calculation, countdown formatting, state determination
-
-- **NS API Client**: 11 tests
-  - Initialization, URL generation, departure management
-
-### Running Tests
+Factory reset (clears NVS, reboots):
 
 ```bash
-# Run all tests
+curl -X POST http://<ip>/api/config \
+  -H 'Content-Type: application/json' \
+  -d '{"factoryReset":true}'
+```
+
+### `POST /api/transport`
+
+Switch transport mode instantly.
+
+```bash
+curl -X POST http://<ip>/api/transport \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"bike"}'
+# → {"ok":true,"mode":"Bike"}
+```
+
+Valid values: `"walk"`, `"bike"`, `"bus"` (case-insensitive).
+
+### `POST /api/fetch`
+
+Trigger an immediate background departure refresh.
+
+```bash
+curl -X POST http://<ip>/api/fetch
+# → {"ok":true,"message":"Fetch triggered"}
+```
+
+### `GET /api/departures`
+
+Upcoming departures from the live cache.
+
+```json
+{
+  "fetchInProgress": false,
+  "departures": [
+    { "mode": "walk", "secondsUntilLeave": 312, "direction": "Den Haag Centraal" },
+    { "mode": "bike", "secondsUntilLeave": 480, "direction": "Den Haag Centraal" }
+  ]
+}
+```
+
+---
+
+## Home Assistant Example
+
+```yaml
+# configuration.yaml
+sensor:
+  - platform: rest
+    name: "Train leave walk"
+    resource: http://192.168.1.x/api/status
+    value_template: "{{ value_json.walk.secondsUntilLeave }}"
+    unit_of_measurement: "s"
+    scan_interval: 10
+
+  - platform: rest
+    name: "Train leave bike"
+    resource: http://192.168.1.x/api/status
+    value_template: "{{ value_json.bike.secondsUntilLeave }}"
+    unit_of_measurement: "s"
+    scan_interval: 10
+```
+
+---
+
+## NS Station Codes
+
+Look up your station code at [ns.nl/stations](https://www.ns.nl/stations) or use the NS API. Common examples:
+
+| Code | Station |
+|------|---------|
+| `AMST` | Amsterdam Centraal |
+| `UT` | Utrecht Centraal |
+| `RTD` | Rotterdam Centraal |
+| `DH` | Den Haag Centraal |
+| `LW` | Leiden Centraal |
+| `HRL` | Haarlem |
+
+---
+
+## Alert States
+
+**RGB LED colors** (when `ledAlertsEnabled = true`):
+
+| Color | State |
+|-------|-------|
+| Green | Safe — more than 10 min to leave |
+| Yellow | Get ready — 5–10 min |
+| Orange | Time to go — 2–5 min |
+| Red (blinking) | Leave now — under 2 min |
+| Blue | Train delayed |
+| Purple | No departures / error |
+
+**Audio alerts** (when `audioAlertsEnabled = true`): single beep at leave time, double beep 5 min before departure, rapid beeps in the final minute.
+
+---
+
+## Running Unit Tests
+
+Tests run entirely on your desktop — no hardware required.
+
+```bash
 pio test -e native
 
-# Run with verbose output
+# Verbose output
 pio test -e native -v
 
-# Run specific test file
+# Single file
 pio test -e native -f test_countdown_calc
 ```
 
-### Test Results
-
-All tests should pass. Example output:
-```
-test/test_config.cpp:12:test_default_config                   [PASSED]
-test/test_config.cpp:22:test_set_station_code                 [PASSED]
-...
------------------------
-12 Tests 0 Failures 0 Ignored
-OK
-```
-
-## Troubleshooting
-
-### Display Issues
-
-**Problem**: Display not working/blank
-- Check wiring (DIN, CLK, CS, VCC, GND)
-- Verify 5V power supply (2A recommended)
-- Add 1000µF capacitor between VCC and GND
-- Check SPI pins match code
-
-**Problem**: Garbage on display
-- Check module orientation
-- Verify MAX_DEVICES count (4 for 4 modules)
-- Try shorter wires (<15cm)
-- Lower SPI clock speed
-
-### WiFi Issues
-
-**Problem**: Cannot connect to WiFi
-- Verify SSID and password
-- Check WiFi signal strength
-- ESP32 only supports 2.4GHz (not 5GHz)
-- Try power cycling ESP32
-
-### NS API Issues
-
-**Problem**: No departures fetched
-- Verify NS API key is correct
-- Check station code (4 letters)
-- Test API manually with curl
-- Check WiFi connection
-- Monitor Serial output for HTTP errors
-
-### Time Sync Issues
-
-**Problem**: Time not syncing
-- Check WiFi connection (NTP requires internet)
-- Verify NTP server accessibility
-- RTC can provide backup time
-- Check timezone configuration
+---
 
 ## Project Structure
 
 ```
 departure-countdown/
-├── include/              # Header files
-│   ├── pins.h           # Pin definitions
-│   ├── config.h         # Configuration manager
-│   ├── time_manager.h   # Time synchronization
-│   ├── ns_api.h         # NS API client
-│   ├── countdown_calc.h # Countdown calculator
-│   ├── display.h        # Display manager
-│   ├── alerts.h         # Alert manager
-│   ├── input.h          # Input handler
-│   └── web_server.h     # Web server (future)
-├── src/                 # Source files
-│   ├── main.cpp         # Main application
-│   ├── config_common.cpp
-│   ├── config_esp32.cpp
-│   ├── config_native.cpp
-│   ├── time_manager_common.cpp
-│   ├── time_manager_esp32.cpp
-│   ├── time_manager_native.cpp
-│   ├── ns_api.cpp
-│   ├── ns_api_fetch_esp32.cpp
-│   ├── ns_api_fetch_stub.cpp
-│   ├── countdown_calc.cpp
-│   ├── display_esp32.cpp
-│   ├── display_stub.cpp
-│   ├── alerts_esp32.cpp
-│   ├── alerts_stub.cpp
-│   ├── input_esp32.cpp
-│   └── input_stub.cpp
-├── test/                # Unit tests
+├── include/
+│   ├── pins.h               GPIO assignments
+│   ├── config.h             Configuration manager
+│   ├── time_manager.h       NTP + RTC time sync
+│   ├── ns_api.h             NS API client
+│   ├── countdown_calc.h     Leave-time calculator
+│   ├── display.h            LED matrix driver
+│   ├── alerts.h             Buzzer + LED alerts
+│   ├── input.h              Button + encoder input
+│   └── web_server.h         Async web server + REST API
+├── src/
+│   ├── main.cpp             Application entry point
+│   ├── *_esp32.cpp          ESP32-specific implementations
+│   ├── *_native.cpp         Desktop stub implementations (for tests)
+│   └── *_stub.cpp           Minimal stubs excluded from both envs
+├── test/
 │   ├── test_config.cpp
-│   ├── test_time_manager.cpp
 │   ├── test_countdown_calc.cpp
+│   ├── test_time_manager.cpp
 │   └── test_ns_api.cpp
-├── platformio.ini       # PlatformIO configuration
-├── README.md            # This file
-└── IMPLEMENTATION_PLAN.md  # Detailed implementation plan
+├── arduino_native/
+│   └── Arduino.h            Arduino API shim for desktop test builds
+├── platformio.ini
+├── README.md
+└── LICENSE
 ```
 
-## Future Enhancements
+---
 
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Phase 6 for planned features:
+## Troubleshooting
 
-- Web UI for configuration
-- RESTful API with OpenAPI spec
-- Multiple transport provider support (Google Maps)
-- Multi-station support
-- MQTT/Home Assistant integration
-- Mobile app
-- Low power modes
+**Display blank or garbage** — check SPI wiring (DIN/CLK/CS), verify 5 V supply with sufficient current (8 modules can draw up to 1 A peak), confirm `MAX_DEVICES = 8` in [pins.h](include/pins.h).
+
+**WiFi won't connect** — ESP32 only supports 2.4 GHz. Re-enter credentials via the web UI or Serial.
+
+**No departures** — verify the NS API key and station code in the web UI. Test the API directly: `curl -H "Ocp-Apim-Subscription-Key: YOUR_KEY" "https://gateway.apiportal.ns.nl/reisinformatie-api/api/v2/departures?station=UT&maxJourneys=5"`.
+
+**Time is wrong** — check WiFi and NTP connectivity. The DS3231 provides a fallback but must be set at least once via NTP.
+
+---
+
+## Libraries Used
+
+| Library | Purpose |
+|---------|---------|
+| [MD_MAX72XX](https://github.com/MajicDesigns/MD_MAX72XX) | MAX7219 hardware driver |
+| [MD_Parola](https://github.com/MajicDesigns/MD_Parola) | Text and scroll effects for LED matrix |
+| [ESPAsyncWebServer-esphome](https://github.com/esphome/ESPAsyncWebServer) | Non-blocking async HTTP server |
+| [ArduinoJson](https://arduinojson.org/) v7 | JSON parsing and serialisation |
+| [RTClib](https://github.com/adafruit/RTClib) | DS3231 RTC driver |
+| [RotaryEncoder](https://github.com/mathertel/RotaryEncoder) | Rotary encoder input |
+
+---
 
 ## License
 
-This project is provided as-is for educational and personal use.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license — see [LICENSE](LICENSE) for the full text.
 
-## Credits
-
-- NS API: [Nederlandse Spoorwegen](https://www.ns.nl/)
-- Libraries: See [platformio.ini](platformio.ini) for dependencies
-
-## Support
-
-For issues, questions, or contributions:
-1. Check [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed documentation
-2. Review troubleshooting section above
-3. Check Serial Monitor output for debug information
-4. Verify hardware connections match [pins.h](include/pins.h)
+**In short:** free to use, modify, and share for personal and educational purposes. Commercial use requires explicit written permission from the author.

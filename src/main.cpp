@@ -10,6 +10,7 @@
 #include "display.h"
 #include "alerts.h"
 #include "input.h"
+#include "web_server.h"
 #include "pins.h"
 
 // System managers
@@ -20,6 +21,7 @@ CountdownCalculator countdownCalc;
 DisplayManager displayManager;
 AlertManager alertManager;
 InputHandler inputHandler;
+WebServerManager webServerManager;
 
 // System state
 bool systemInitialized = false;
@@ -44,6 +46,8 @@ struct DepCache {
     bool valid = false;
 };
 static DepCache cacheWalk, cacheBike;
+
+static void triggerFetch();  // forward declaration — defined after initializeSystem
 
 static String readSerialLine(const char* prompt, bool echoInput = true, bool maskInput = false,
                              unsigned long timeoutMs = 30000) {
@@ -368,6 +372,13 @@ bool initializeSystem() {
     // Create the mutex that serialises access to NSApiClient
     nsMutex = xSemaphoreCreateMutex();
 
+    // Start web server (only when WiFi is up)
+    if (WiFi.status() == WL_CONNECTED) {
+        webServerManager.begin(&configManager, &nsApiClient, &countdownCalc);
+        webServerManager.setFetchCallback(triggerFetch);
+        webServerManager.setDisplayConnected(true);  // display is always init'd before we reach here
+    }
+
     Serial.println("\n=== System Ready ===\n");
     displayManager.showMessage("READY");
     delay(1000);
@@ -522,6 +533,16 @@ void updateDisplay() {
     if (alertSel.info) {
         alertManager.update(*alertSel.info, alertSel.mode);
     }
+
+    // Push a status snapshot so the web API always has fresh data
+    webServerManager.updateStatus(
+        walkAvail ? infoWalk.secondsUntilLeave : 0,
+        bikeAvail ? infoBike.secondsUntilLeave : 0,
+        fetchInProgress,
+        walkAvail ? infoWalk.direction : "",
+        bikeAvail ? infoBike.direction : "",
+        WiFi.RSSI()
+    );
 
     Serial.print("Leave in: ");
     Serial.print(CountdownCalculator::formatCountdown(info.secondsUntilLeave));
