@@ -158,20 +158,6 @@ ButtonEvent InputHandler::getButtonEvent() {
     return BTN_NONE;
 }
 
-int InputHandler::getEncoderDelta() {
-    if (!encoder) return 0;
-
-    int newPos = encoder->getPosition();
-    int delta = newPos - lastEncoderPos;
-    lastEncoderPos = newPos;
-    return delta;
-}
-
-void InputHandler::resetEncoder() {
-    if (!encoder) return;
-    encoder->setPosition(0);
-    lastEncoderPos = 0;
-}
 
 bool InputHandler::isButtonPressed(int pin) {
     return digitalRead(pin) == LOW;  // Pull-up resistors, so LOW when pressed

@@ -37,12 +37,6 @@ ButtonEvent InputHandler::getButtonEvent() {
     return BTN_NONE;
 }
 
-int InputHandler::getEncoderDelta() {
-    return 0;
-}
-
-void InputHandler::resetEncoder() {
-}
 
 bool InputHandler::isButtonPressed(int pin) {
     (void)pin;

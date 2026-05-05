@@ -33,6 +33,51 @@ public:
         return pos == std::string::npos ? -1 : (int)pos;
     }
 
+    int indexOf(const char* s, int from = 0) const {
+        size_t pos = _s.find(s, (size_t)from);
+        return pos == std::string::npos ? -1 : (int)pos;
+    }
+
+    int indexOf(const String& s, int from = 0) const {
+        return indexOf(s.c_str(), from);
+    }
+
+    char charAt(int index) const {
+        if (index < 0 || index >= (int)_s.size()) return 0;
+        return _s[(size_t)index];
+    }
+
+    void trim() {
+        size_t s = _s.find_first_not_of(" \t\r\n");
+        size_t e = _s.find_last_not_of(" \t\r\n");
+        _s = (s == std::string::npos) ? "" : _s.substr(s, e - s + 1);
+    }
+
+    bool startsWith(const char* prefix) const {
+        return _s.rfind(prefix, 0) == 0;
+    }
+
+    bool startsWith(const String& prefix) const {
+        return startsWith(prefix.c_str());
+    }
+
+    bool equalsIgnoreCase(const char* other) const {
+        if (_s.size() != strlen(other)) return false;
+        for (size_t i = 0; i < _s.size(); i++) {
+            if (tolower((unsigned char)_s[i]) != tolower((unsigned char)other[i])) return false;
+        }
+        return true;
+    }
+
+    bool equalsIgnoreCase(const String& other) const {
+        return equalsIgnoreCase(other.c_str());
+    }
+
+    void remove(int from, int count = 1) {
+        if (from >= 0 && from < (int)_s.size())
+            _s.erase((size_t)from, (size_t)count);
+    }
+
     String substring(int from, int to = -1) const {
         if (from < 0) from = 0;
         int end = (to < 0 || to > (int)_s.size()) ? (int)_s.size() : to;

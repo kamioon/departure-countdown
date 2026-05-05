@@ -50,21 +50,18 @@ void AlertManager::update(const CountdownInfo& info, TransportMode mode) {
         lastDepartureTime = info.departureTime;
     }
 
-    // Update LED color based on state
     if (info.state != lastState) {
         LedColor color = getColorForState(info.state);
         bool shouldBlink = (info.state == COUNTDOWN_URGENT);
         setLedColor(color, shouldBlink);
     }
 
-    // Check if we should trigger an audio alert
     AlertType alertToTrigger = shouldTriggerAlert(info);
     if (alertToTrigger != ALERT_NONE && alertToTrigger != lastAlert) {
         triggerAlert(alertToTrigger, mode);
         lastAlert = alertToTrigger;
     }
 
-    // Update LED blinking
     updateBlink();
 
     lastState = info.state;
@@ -183,7 +180,7 @@ void AlertManager::setLedColor(LedColor color, bool blink) {
     blinkState = true;
 
     if (!blink) {
-        updateBlink();  // Set color immediately
+        updateBlink();
     }
 }
 
@@ -192,16 +189,14 @@ void AlertManager::updateBlink() {
         return;
     }
 
-    // Handle blinking
     if (ledBlinking) {
         unsigned long now = millis();
-        if (now - lastBlinkTime >= 500) {  // Blink every 500ms
+        if (now - lastBlinkTime >= 500) {
             blinkState = !blinkState;
             lastBlinkTime = now;
         }
     }
 
-    // Set LED color
     if (blinkState) {
         switch (currentLedColor) {
             case LED_GREEN:

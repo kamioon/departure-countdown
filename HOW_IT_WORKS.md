@@ -58,7 +58,15 @@ If WiFi or API key is empty, `main.cpp` asks for them over Serial and saves them
 ### AlertManager
 `include/alerts.h` + `src/alerts_esp32.cpp` drives buzzer + RGB LED:
 - Green/yellow/orange/red based on urgency
-- Beeps for “leave soon” and “train departing”
+- Beeps for “leave soon” and “train departing” (audio disabled by default — enable via web UI or `audioAlertsEnabled`)
+- A startup triple-beep always plays regardless of the audio setting
+
+### WebServerManager
+`include/web_server.h` + `src/web_server_esp32.cpp` runs an async HTTP server on port 80:
+- Serves a browser-based configuration UI
+- REST API endpoints: `GET/POST /api/config`, `GET /api/status`, `GET /api/departures`, `POST /api/transport`, `POST /api/fetch`
+- Status is updated each display tick via `updateStatus()` so the web API always reflects live data
+- Only started when WiFi is connected; fetch is triggered via callback so the web server never touches FreeRTOS tasks directly
 
 ### InputHandler
 `include/input.h` + `src/input_esp32.cpp` reads buttons and encoder:
@@ -68,9 +76,9 @@ If WiFi or API key is empty, `main.cpp` asks for them over Serial and saves them
 
 ## How the Data Moves
 
-- WiFi connects → time sync → API fetch
-- Departures → countdown calculator → display + alerts
-- Button changes travel mode → countdown recalculates → display updates
+- WiFi connects → time sync → API fetch → web server starts
+- Departures → countdown calculator → display + alerts + web status cache
+- Button or web UI changes travel mode → countdown recalculates → display updates
 
 ## Where to Start Reading
 
@@ -79,6 +87,7 @@ If you are new to embedded C++:
 2. `src/config_common.cpp` to understand saved settings.
 3. `src/ns_api.cpp` to see the network request.
 4. `src/display_esp32.cpp` and `src/alerts_esp32.cpp` for output behavior.
+5. `src/web_server_esp32.cpp` for the HTTP server and REST API.
 
 ## Platform-Specific Files
 

@@ -171,16 +171,12 @@ static void beepStartup() {
 
 
 
-/**
- * @brief Initialize all system components
- */
 bool initializeSystem() {
     Serial.begin(115200);
     delay(1000);
     Serial.println("\n\n=== Departure Countdown System ===");
     Serial.println("Initializing...\n");
 
-    // Initialize configuration
     Serial.print("Loading configuration... ");
     if (!configManager.begin()) {
         Serial.println("FAILED");
@@ -188,7 +184,6 @@ bool initializeSystem() {
     }
     Serial.println("OK");
 
-    // Initialize display
     Serial.print("Initializing display... ");
     if (!displayManager.begin()) {
         Serial.println("FAILED");
@@ -197,7 +192,6 @@ bool initializeSystem() {
     Serial.println("OK");
     beepStartup();
 
-    // Show startup animation
     displayManager.showStartupAnimation();
     Config& config = configManager.getConfig();
 
@@ -225,7 +219,6 @@ bool initializeSystem() {
         }
     }
 
-    // Initialize WiFi with better stability
     for (int attempt = 0; attempt < 2; attempt++) {
         displayManager.showMessage("WIFI...");
 
@@ -238,11 +231,9 @@ bool initializeSystem() {
 
         Serial.print("Connecting to WiFi... ");
 
-        // Disconnect first to clear any previous state
         WiFi.disconnect(true);
         delay(100);
 
-        // Configure WiFi for better stability
         WiFi.mode(WIFI_STA);
         WiFi.setAutoReconnect(true);
         WiFi.persistent(true);
@@ -311,13 +302,11 @@ bool initializeSystem() {
     } else {
         Serial.println("OK");
 
-        // Show current time to verify NTP sync
         unsigned long currentTime = timeManager.getCurrentTime();
         String timeStr = timeManager.formatTime(currentTime);
         Serial.print("Current time: ");
         Serial.println(timeStr);
 
-        // Also show date
         time_t rawtime = (time_t)currentTime;
         struct tm* timeinfo = localtime(&rawtime);
         char dateBuffer[20];
@@ -329,10 +318,9 @@ bool initializeSystem() {
         Serial.println(dateBuffer);
     }
 
-    // Initialize NS API client
     Serial.print("Initializing NS API... ");
     String apiKey = String(configManager.getConfig().nsApiKey);
-    nsApiClient.setTimeManager(&timeManager);  // Connect TimeManager for ISO8601 parsing
+    nsApiClient.setTimeManager(&timeManager);
     if (apiKey.length() == 0) {
         Serial.println("NO API KEY");
         displayManager.showMessage("NO API KEY");
@@ -345,7 +333,6 @@ bool initializeSystem() {
         Serial.println("OK");
     }
 
-    // Initialize countdown calculator
     Serial.print("Initializing countdown... ");
     if (!countdownCalc.begin(&configManager, &timeManager)) {
         Serial.println("FAILED");
@@ -353,7 +340,6 @@ bool initializeSystem() {
     }
     Serial.println("OK");
 
-    // Initialize alerts
     Serial.print("Initializing alerts... ");
     if (!alertManager.begin(&configManager)) {
         Serial.println("FAILED");
@@ -361,7 +347,6 @@ bool initializeSystem() {
     }
     Serial.println("OK");
 
-    // Initialize input handler
     Serial.print("Initializing input... ");
     if (!inputHandler.begin()) {
         Serial.println("FAILED");
@@ -439,13 +424,8 @@ static CountdownInfo recalcFromCache(const DepCache& cache, unsigned long curren
     return info;
 }
 
-/**
- * @brief Update display with countdown.
- *
- * When a background fetch is in progress the API mutex is held by the fetch
- * task, so we fall back to cached departure timestamps to keep the countdown
- * ticking live without accessing the shared NSApiClient buffer.
- */
+// When a background fetch is in progress the API mutex is held by the fetch task,
+// so we fall back to cached departure timestamps to keep the countdown ticking live.
 void updateDisplay() {
     unsigned long currentTime = timeManager.getCurrentTime();
     int bufferTime = configManager.getConfig().bufferTime;
@@ -552,9 +532,6 @@ void updateDisplay() {
     Serial.println(CountdownCalculator::getStateName(info.state));
 }
 
-/**
- * @brief Handle button inputs
- */
 void handleInputs() {
     ButtonEvent event = inputHandler.getButtonEvent();
 
@@ -598,9 +575,6 @@ void handleInputs() {
     }
 }
 
-/**
- * @brief Arduino setup function
- */
 void setup() {
     systemInitialized = initializeSystem();
 
@@ -617,37 +591,24 @@ void setup() {
     }
 }
 
-/**
- * @brief Arduino loop function
- */
 void loop() {
     unsigned long now = millis();
 
-    // Update input handler
     inputHandler.update();
-
-    // Handle button inputs
     handleInputs();
-
-    // Update time manager
     timeManager.update();
 
-    // Trigger a background fetch periodically
     if (WiFi.status() == WL_CONNECTED && !fetchInProgress &&
         now - lastApiUpdate >= API_UPDATE_INTERVAL) {
         triggerFetch();
         lastApiUpdate = now;
     }
 
-    // Update display periodically
     if (now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
         updateDisplay();
         lastDisplayUpdate = now;
     }
 
-    // Update display animation
     displayManager.update();
-
-    // Small delay to prevent overwhelming the CPU
     delay(10);
 }

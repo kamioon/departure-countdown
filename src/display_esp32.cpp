@@ -29,11 +29,7 @@ const uint8_t bicycleIcon[8] = {
 };
 
 DisplayManager::DisplayManager() :
-    currentMode(DISPLAY_COUNTDOWN),
-    autoRotate(false),
-    autoRotateInterval(5000),
-    lastRotateTime(0),
-    rotateIndex(0) {
+    currentMode(DISPLAY_COUNTDOWN) {
     display = nullptr;
 }
 
@@ -63,12 +59,6 @@ void DisplayManager::update() {
     if (!display) return;
 
     display->displayAnimate();
-
-    // Handle auto-rotate
-    if (autoRotate && millis() - lastRotateTime >= autoRotateInterval) {
-        lastRotateTime = millis();
-        // Rotate between modes handled by main application
-    }
 }
 
 void DisplayManager::showCountdown(const CountdownInfo& info, TransportMode mode, bool flashTimer) {
@@ -78,20 +68,12 @@ void DisplayManager::showCountdown(const CountdownInfo& info, TransportMode mode
 
     display->displayClear();
 
-    // Get destination (LEFT side - module 0).
-    // Use the pre-copied direction string so this works even when departure pointer is null
-    // (e.g. during a background fetch where we can't safely dereference the pointer).
+    // Use the pre-copied direction string — safe when departure pointer is null
+    // (e.g. during a background fetch where we can't safely dereference it).
     String dirStr = info.departure ? info.departure->direction : info.direction;
-    String destination = "";
-    if (dirStr.startsWith("Den Haag")) {
-        destination = "DH";
-    } else if (dirStr.startsWith("Leiden")) {
-        destination = "L ";
-    }
 
-    Serial.print("[DISPLAY] Destination: '");
-    Serial.print(destination);
-    Serial.println("'");
+    // Abbreviate to fit the display — take up to 4 chars of the first word
+    String destination = dirStr.length() > 0 ? dirStr.substring(0, dirStr.indexOf(' ') > 0 ? min((int)dirStr.indexOf(' '), 4) : min((int)dirStr.length(), 4)) : "";
 
     // Format timer (middle)
     String timer = CountdownCalculator::formatCountdown(info.secondsUntilLeave);
@@ -120,10 +102,6 @@ void DisplayManager::showCountdown(const CountdownInfo& info, TransportMode mode
     } else if (displayText.length() > 7) {
         displayText = displayText.substring(0, 7);
     }
-
-    Serial.print("[DISPLAY] Final text: '");
-    Serial.print(displayText);
-    Serial.println("'");
 
     // Display text (LEFT aligned = DEST on module 0)
     display->setTextAlignment(PA_LEFT);
@@ -207,16 +185,6 @@ void DisplayManager::setIntensity(uint8_t intensity) {
 
     if (intensity > 15) intensity = 15;
     display->setIntensity(intensity);
-}
-
-void DisplayManager::setMode(DisplayMode mode) {
-    currentMode = mode;
-}
-
-void DisplayManager::setAutoRotate(bool enabled, unsigned long intervalMs) {
-    autoRotate = enabled;
-    autoRotateInterval = intervalMs;
-    lastRotateTime = millis();
 }
 
 void DisplayManager::showStartupAnimation() {

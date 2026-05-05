@@ -39,7 +39,6 @@ String NSApiClient::getApiUrl(const String& stationCode, int maxJourneys) {
 bool NSApiClient::parseResponse(const String& json) {
     clearDepartures();
 
-    // Use dynamic JSON document for large responses
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, json);
 
@@ -48,7 +47,6 @@ bool NSApiClient::parseResponse(const String& json) {
         return false;
     }
 
-    // Check if payload exists (ArduinoJson v7 syntax)
     if (!doc["payload"].is<JsonObject>()) {
         lastError = "Response missing 'payload' field";
         return false;
@@ -63,11 +61,8 @@ bool NSApiClient::parseResponse(const String& json) {
 
     JsonArray departuresArray = payload["departures"].as<JsonArray>();
 
-    // Parse each departure
     for (JsonObject depJson : departuresArray) {
-        if (departureCount >= MAX_DEPARTURES) {
-            break;  // Max cached departures
-        }
+        if (departureCount >= MAX_DEPARTURES) break;
 
         if (parseDeparture(depJson, departures[departureCount])) {
             departureCount++;
@@ -78,21 +73,15 @@ bool NSApiClient::parseResponse(const String& json) {
 }
 
 bool NSApiClient::parseDeparture(JsonObject depJson, Departure& departure) {
-    // Extract required fields (ArduinoJson v7 syntax)
     if (!depJson["direction"].is<String>() || !depJson["plannedDateTime"].is<String>()) {
-        return false;  // Skip invalid departures
+        return false;
     }
 
-    // Use String() constructor to ensure proper copy (not reference)
-    departure.direction = String(depJson["direction"].as<const char*>());
-    departure.plannedDateTime = String(depJson["plannedDateTime"].as<const char*>());
+    // Use String() constructor — ArduinoJson returns a temporary reference, not a copy
+    departure.direction        = String(depJson["direction"].as<const char*>());
+    departure.plannedDateTime  = String(depJson["plannedDateTime"].as<const char*>());
 
-    // Filter: Only show departures to Den Haag Centraal or Leiden Centraal
-    if (departure.direction != "Den Haag Centraal" && departure.direction != "Leiden Centraal") {
-        return false;  // Skip this departure
-    }
 
-    // Optional fields
     if (depJson["name"].is<String>()) {
         departure.trainName = String(depJson["name"].as<const char*>());
     }
@@ -121,7 +110,6 @@ bool NSApiClient::parseDeparture(JsonObject depJson, Departure& departure) {
         departure.departureStatus = String(depJson["departureStatus"].as<const char*>());
     }
 
-    // Extract train type from product info
     if (depJson["product"].is<JsonObject>()) {
         JsonObject product = depJson["product"];
         if (product["shortCategoryName"].is<String>()) {
@@ -129,45 +117,23 @@ bool NSApiClient::parseDeparture(JsonObject depJson, Departure& departure) {
         }
     }
 
-    // Parse timestamps using TimeManager
     if (timeManager) {
         departure.plannedTime = timeManager->parseISO8601(departure.plannedDateTime);
-        departure.actualTime = timeManager->parseISO8601(departure.actualDateTime);
+        departure.actualTime  = timeManager->parseISO8601(departure.actualDateTime);
 
-        // Debug: Show parsed times
-        Serial.print("  Parsed planned: ");
-        Serial.print(departure.plannedTime);
-        Serial.print(" (");
-        Serial.print(departure.plannedDateTime);
-        Serial.print("), actual: ");
-        Serial.print(departure.actualTime);
-        Serial.print(" (");
-        Serial.print(departure.actualDateTime);
-        Serial.println(")");
-
-        // Calculate delay
         if (departure.plannedTime > 0 && departure.actualTime > 0) {
             departure.delayMinutes = (departure.actualTime - departure.plannedTime) / 60;
         } else {
             departure.delayMinutes = 0;
         }
     } else {
-        Serial.println("  WARNING: No TimeManager - times not parsed!");
-        // No TimeManager available, store 0
-        departure.plannedTime = 0;
-        departure.actualTime = 0;
+        Serial.println("WARNING: No TimeManager - times not parsed!");
+        departure.plannedTime  = 0;
+        departure.actualTime   = 0;
         departure.delayMinutes = 0;
     }
 
     return true;
-}
-
-int NSApiClient::calculateDelay(unsigned long planned, unsigned long actual) {
-    if (actual <= planned) {
-        return 0;
-    }
-
-    return (int)((actual - planned) / 60);  // Convert seconds to minutes
 }
 
 const Departure& NSApiClient::getDeparture(int index) const {
@@ -188,48 +154,19 @@ const Departure* NSApiClient::getNextDeparture(unsigned long currentTime, int tr
     for (int i = 0; i < departureCount; i++) {
         const Departure& dep = departures[i];
 
-        // Skip cancelled trains
-        if (dep.cancelled) {
-            continue;
-        }
+        if (dep.cancelled) continue;
 
-        // ALWAYS use planned time to determine if train has departed
-        // (We need to show next train based on schedule, not delays)
+        // Always use planned time — schedule determines if a train has "left", not its delay
         unsigned long depTime = dep.plannedTime;
 
-        // If planned time not available, skip this departure
-        if (depTime == 0) {
-            continue;
-        }
+        if (depTime == 0) continue;
 
-        // Skip if already departed (with 30 second grace period)
-        if (depTime + 30 < currentTime) {
-            Serial.print("[SKIP] Train to ");
-            Serial.print(dep.direction);
-            Serial.print(" already departed (");
-            Serial.print(depTime);
-            Serial.print(" < ");
-            Serial.print(currentTime);
-            Serial.println(")");
-            continue;
-        }
+        // 30-second grace: don't skip a train the instant its scheduled time passes
+        if (depTime + 30 < currentTime) continue;
 
-        // If travel time provided, check if we can still catch this train
         if (travelTimeMinutes > 0 || bufferTimeMinutes > 0) {
-            int totalMinutes = travelTimeMinutes + bufferTimeMinutes;
-            unsigned long leaveTime = depTime - (totalMinutes * 60);
-
-            // Skip if leave time has passed (with 30 second grace period)
-            if (leaveTime + 30 < currentTime) {
-                Serial.print("[SKIP] Train to ");
-                Serial.print(dep.direction);
-                Serial.print(" - leave time passed (needed to leave at ");
-                Serial.print(leaveTime);
-                Serial.print(", current: ");
-                Serial.print(currentTime);
-                Serial.println(")");
-                continue;
-            }
+            unsigned long leaveTime = depTime - ((travelTimeMinutes + bufferTimeMinutes) * 60);
+            if (leaveTime + 30 < currentTime) continue;
         }
 
         return &dep;

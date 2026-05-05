@@ -95,8 +95,9 @@ bool ConfigManager::validate() {
         return false;
     }
 
-    // Validate station code (should be 2-4 characters)
-    if (strlen(config.stationCode) < 2 || strlen(config.stationCode) > 4) {
+    // Validate station code (2-4 chars; empty = unconfigured, also allowed)
+    size_t stationLen = strlen(config.stationCode);
+    if (stationLen > 0 && (stationLen < 2 || stationLen > 4)) {
         Serial.println("Invalid station code");
         return false;
     }

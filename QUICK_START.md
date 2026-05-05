@@ -43,8 +43,8 @@ Initializing...
 Loading configuration... OK
 Initializing display... OK
 Connecting to WiFi... .......OK
-IP Address: 192.168.1.100
-Signal Strength: -52 dBm
+IP Address: 192.168.1.x
+Signal Strength: -xx dBm
 Initializing time...
 Forcing NTP sync...
 NTP sync successful
@@ -119,11 +119,11 @@ If you still see crashes after rebuild, share the **new** serial monitor output.
 
 ### Full System:
 - ESP32-S3-DevKitC-1
-- 4x MAX7219 8x8 LED matrix modules
+- 8x MAX7219 8x8 LED matrix modules
 - Rotary encoder with push button
 - 3x push buttons
 - DS3231 RTC module (optional)
-- Buzzer (optional)
+- Buzzer (optional, disabled by default in firmware)
 - Wires and breadboard
 
 ---
@@ -140,13 +140,12 @@ If you still see crashes after rebuild, share the **new** serial monitor output.
 
 ## 📖 Full Documentation
 
-- [CURRENT_STATUS.md](CURRENT_STATUS.md) - Detailed status and next steps
-- [WIFI_TROUBLESHOOTING.md](WIFI_TROUBLESHOOTING.md) - WiFi debugging guide
 - [WIRING_ESP32-S3.md](WIRING_ESP32-S3.md) - Hardware wiring guide
+- [HOW_IT_WORKS.md](HOW_IT_WORKS.md) - Architecture and code walkthrough
 - [README.md](README.md) - Complete project documentation
 
 ---
 
 **Questions?** Check the documentation above or share your serial monitor output for help.
 
-Last Updated: 2026-01-02
+Last Updated: 2026-05-05

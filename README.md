@@ -6,67 +6,86 @@ Supports Walk, Bike, and Bus travel modes so the countdown automatically adjusts
 
 ---
 
+## Demo
+
+[![Watch the demo on YouTube](https://img.youtube.com/vi/S2jjdlVHxp8/hqdefault.jpg)](https://youtube.com/shorts/S2jjdlVHxp8)
+
+<p>
+  <img src="assets/images/demo_image_01.jpg" height="300" />
+  <img src="assets/images/demo_image_02.jpg" height="300" />
+</p>
+
+---
+
 ## Features
 
 - Live countdown timer ("leave in MM:SS") with automatic DST handling (Amsterdam timezone)
 - Alternates between Walk and Bike countdowns every 5 seconds
 - Urgent mode (<60 s to leave): animated walking/cycling icon on the rightmost display module
 - Background API fetch via FreeRTOS — display never freezes or blanks during a network request
-- DS3231 RTC keeps time accurate during brief WiFi outages
 - Web UI on port 80 for all configuration, no app needed
 - REST API for smarthome integration (CORS-enabled, JSON)
 - All credentials stored in ESP32 NVS (flash), never in source code
 - Unit test suite runnable on any desktop (`pio test -e native`)
+- DS3231 RTC backup clock for time continuity during WiFi outages *(optional)*
+- Buzzer audible alert when it's time to leave *(optional)*
+- RGB LED status indicator *(optional)*
+- Rotary encoder + buttons for on-device navigation *(optional)*
 
 ---
 
 ## Hardware
 
+### Required
+
 | Component | Description |
 |-----------|-------------|
 | **ESP32-S3-DevKitC-1** | Main microcontroller — dual-core 240 MHz, built-in WiFi, native USB |
-| **MAX7219 8×8 LED Matrix × 8** | FC-16 type modules chained (64×8 dot-matrix display) |
-| **DS3231 RTC Module** | Precision real-time clock with battery backup |
-| **Rotary Encoder** | Navigation input (with push button) |
+| **MAX7219 FC-16 4×(8×8) module × 2** | Two 4-module boards chained together (64×8 dot-matrix display) |
+| **USB 5 V power supply** | Powers both the ESP32 and the display chain |
+
+### Optional
+
+| Component | Description |
+|-----------|-------------|
+| **Passive Buzzer** | Audible alert when it's time to leave (disabled by default in firmware) |
+| **DS3231 RTC Module** | Keeps time accurate during brief WiFi outages — device falls back to NTP-only without it |
+| **Rotary Encoder** | On-device navigation input (with push button) |
 | **Push Button × 3** | Start/Refresh, Mode cycle, Factory Reset |
-| **Passive Buzzer** | Audible alert when it's time to leave |
-| **RGB LED** | Optional status indicator |
+| **RGB LED** | Visual status indicator (safe / ready / urgent / error) |
 
 ---
 
 ## Wiring
 
-### MAX7219 Display (SPI)
+### MAX7219 Display (SPI) — required
 
 | MAX7219 pin | ESP32-S3 GPIO |
 |-------------|---------------|
 | DIN (MOSI)  | GPIO 11 |
 | CLK (SCK)   | GPIO 12 |
 | CS / LOAD   | GPIO 10 |
+| VCC         | 5 V |
+| GND         | GND |
 
-Chain all 8 modules in series (DOUT of one → DIN of next). Power from 5 V; add a 10 µF cap on the 5 V rail close to the first module.
+Chain the two FC-16 boards in series: DOUT of board 1 → DIN of board 2. Power from 5 V; add a 1000 µF cap on the 5 V rail close to the first board.
 
-### DS3231 RTC (I2C)
+### Optional components
 
-| RTC pin | ESP32-S3 GPIO |
-|---------|---------------|
-| SDA     | GPIO 1 |
-| SCL     | GPIO 2 |
-
-### Buttons & I/O
-
-| Function | GPIO |
-|----------|------|
-| Rotary encoder CLK | GPIO 4 |
-| Rotary encoder DT  | GPIO 5 |
-| Rotary encoder SW  | GPIO 6 |
-| Start / Refresh button | GPIO 7 |
-| Reset button | GPIO 15 |
-| Mode button  | GPIO 16 |
-| Buzzer (PWM) | GPIO 17 |
-| RGB LED Red  | GPIO 18 |
-| RGB LED Green | GPIO 8 |
-| RGB LED Blue | GPIO 3 |
+| Function | GPIO | Notes |
+|----------|------|-------|
+| Buzzer (PWM) | GPIO 17 | Passive buzzer, other leg to GND |
+| DS3231 SDA | GPIO 1 | I2C data |
+| DS3231 SCL | GPIO 2 | I2C clock |
+| Rotary encoder CLK | GPIO 4 | |
+| Rotary encoder DT  | GPIO 5 | |
+| Rotary encoder SW  | GPIO 6 | |
+| Start / Refresh button | GPIO 7 | Button to GND, internal pull-up |
+| Reset button | GPIO 15 | Button to GND, internal pull-up |
+| Mode button  | GPIO 16 | Button to GND, internal pull-up |
+| RGB LED Red  | GPIO 18 | 220 Ω series resistor |
+| RGB LED Green | GPIO 8 | 220 Ω series resistor |
+| RGB LED Blue | GPIO 3 | 220 Ω series resistor |
 
 > **Avoid** GPIO 0 (boot button), GPIO 19/20 (USB D±), and GPIO 26–37 (flash/PSRAM lines).
 
@@ -109,6 +128,10 @@ You can also reconfigure everything from the web UI at any time — no reflash n
 ---
 
 ## How It Works
+
+<p align="center">
+  <img src="assets/images/info_graphic.png" width="100%" />
+</p>
 
 ```
 Boot
@@ -303,7 +326,7 @@ Look up your station code at [ns.nl/stations](https://www.ns.nl/stations) or use
 | Blue | Train delayed |
 | Purple | No departures / error |
 
-**Audio alerts** (when `audioAlertsEnabled = true`): single beep at leave time, double beep 5 min before departure, rapid beeps in the final minute.
+**Audio alerts** (disabled by default — set `audioAlertsEnabled = true` via the web UI or API to enable): single beep at leave time, double beep 5 min before departure, rapid beeps in the final minute. Note: a short triple-beep plays at startup regardless of this setting.
 
 ---
 

@@ -2,11 +2,7 @@
 
 DisplayManager::DisplayManager() :
     currentMode(DISPLAY_COUNTDOWN),
-    currentText(""),
-    autoRotate(false),
-    autoRotateInterval(0),
-    lastRotateTime(0),
-    rotateIndex(0) {
+    currentText("") {
     display = nullptr;
 }
 
@@ -46,15 +42,6 @@ void DisplayManager::clear() {
 
 void DisplayManager::setIntensity(uint8_t intensity) {
     (void)intensity;
-}
-
-void DisplayManager::setMode(DisplayMode mode) {
-    currentMode = mode;
-}
-
-void DisplayManager::setAutoRotate(bool enabled, unsigned long intervalMs) {
-    autoRotate = enabled;
-    autoRotateInterval = intervalMs;
 }
 
 void DisplayManager::showStartupAnimation() {

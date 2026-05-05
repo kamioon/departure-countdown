@@ -162,7 +162,7 @@ void test_calculate_with_long_departure_time(void) {
     configManager->setActiveMode(BIKE);  // 8 min
 
     unsigned long currentTime = timeManager->getCurrentTime();
-    unsigned long departureTime = currentTime + (60 * 60);  // 1 hour
+    unsigned long departureTime = currentTime + (61 * 60);  // 61 min → 51 min until leave
 
     CountdownInfo info = calculator->calculate(departureTime);
 

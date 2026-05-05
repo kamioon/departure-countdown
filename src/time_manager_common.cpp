@@ -68,6 +68,10 @@ bool TimeManager::parseDateComponent(const String& dateStr, int& year, int& mont
     month = dateStr.substring(firstDash + 1, secondDash).toInt();
     day = dateStr.substring(secondDash + 1).toInt();
 
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+        return false;
+    }
+
     return true;
 }
 

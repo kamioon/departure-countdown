@@ -48,7 +48,7 @@ The ESP32-S3 has a different GPIO layout compared to the classic ESP32:
 
 ## Detailed Wiring Diagrams
 
-### MAX7219 LED Matrix (4x 8x8 modules)
+### MAX7219 LED Matrix (8x 8x8 modules)
 
 ```
 ESP32-S3                MAX7219 Module 1        Module 2-4
@@ -151,17 +151,17 @@ GND     ───────────► GND
 ### Power Supply Requirements
 
 - **ESP32-S3**: 500mA (peak)
-- **MAX7219 (4 modules)**: 200-400mA (typical), up to 1A (full brightness)
+- **MAX7219 (8 modules)**: 400-800mA (typical), up to 2A (full brightness)
 - **RTC**: 1-2mA
 - **Other components**: ~50mA
 
-**Total: 750mA typical, 1.5A peak**
+**Total: 1A typical, 2.5A peak**
 
 ### Recommended Power Options
 
-1. **USB 5V 2A adapter** (recommended)
+1. **USB 5V 3A adapter** (recommended)
    - Most convenient
-   - Can power everything
+   - Can power everything including 8 display modules
 
 2. **USB-C cable from computer**
    - Good for development
