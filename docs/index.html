@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Departure Countdown</title>
+  <meta name="description" content="ESP32-S3 device that counts down exactly when to leave home to catch your next train — live from the NS API." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --accent:   #3fb950;
+      --accent2:  #58a6ff;
+      --radius:   10px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13,17,23,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+    }
+    .nav-logo {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links { display: flex; gap: 1.5rem; font-size: .875rem; color: var(--muted); }
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    /* ── HERO ── */
+    .hero {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 5rem 2rem 3rem;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(63,185,80,.12);
+      border: 1px solid rgba(63,185,80,.3);
+      color: var(--accent);
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: .3rem .8rem;
+      border-radius: 20px;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -.02em;
+      margin-bottom: 1.25rem;
+    }
+    h1 em { color: var(--accent); font-style: normal; }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 580px;
+      margin: 0 auto 2.5rem;
+    }
+    .cta-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .65rem 1.4rem;
+      border-radius: var(--radius);
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .15s;
+    }
+    .btn:hover { opacity: .85; transform: translateY(-1px); text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+
+    /* ── SECTIONS ── */
+    section { padding: 5rem 2rem; }
+    .section-inner { max-width: 900px; margin: 0 auto; }
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: .5rem;
+      letter-spacing: -.01em;
+    }
+    .section-sub {
+      color: var(--muted);
+      margin-bottom: 2.5rem;
+      font-size: 1rem;
+    }
+
+    /* ── DEMO ── */
+    .demo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 360px;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6);
+      border: 1px solid var(--border);
+      aspect-ratio: 9/16;
+    }
+    .video-container iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .photos {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .photos img {
+      height: 240px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+      transition: transform .2s;
+    }
+    .photos img:hover { transform: scale(1.02); }
+
+    /* ── FEATURES ── */
+    #features { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+    }
+    .feature-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.4rem;
+      transition: border-color .2s;
+    }
+    .feature-card:hover { border-color: var(--accent); }
+    .feature-icon { font-size: 1.5rem; margin-bottom: .75rem; }
+    .feature-card h3 { font-size: .95rem; font-weight: 600; margin-bottom: .4rem; }
+    .feature-card p { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+
+    /* ── HARDWARE ── */
+    .hw-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 600px) { .hw-cols { grid-template-columns: 1fr; } }
+    .hw-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+    .hw-box h3 {
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+    .hw-box.optional h3 { color: var(--muted); }
+    .hw-list { list-style: none; display: flex; flex-direction: column; gap: .6rem; }
+    .hw-list li { font-size: .9rem; display: flex; align-items: flex-start; gap: .6rem; }
+    .hw-list li::before { content: "•"; color: var(--accent); flex-shrink: 0; margin-top: .05rem; }
+    .hw-box.optional .hw-list li::before { color: var(--muted); }
+    .hw-list .muted { color: var(--muted); font-size: .8rem; }
+
+    /* ── HOW IT WORKS ── */
+    #how { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+      position: relative;
+      padding-bottom: 2rem;
+    }
+    .step:last-child { padding-bottom: 0; }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #0d1117;
+      font-weight: 800;
+      font-size: .85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+    .step-line {
+      position: absolute;
+      left: 15px;
+      top: 32px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .step:last-child .step-line { display: none; }
+    .step-body h3 { font-size: 1rem; font-weight: 600; margin-bottom: .3rem; padding-top: .3rem; }
+    .step-body p { font-size: .875rem; color: var(--muted); }
+
+    /* ── INFOGRAPHIC ── */
+    .infographic-wrap {
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+    }
+    .infographic-wrap img { width: 100%; display: block; }
+
+    /* ── GET STARTED ── */
+    .code-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: .85rem;
+      color: var(--accent);
+      overflow-x: auto;
+      line-height: 1.8;
+    }
+    .code-block .comment { color: var(--muted); }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2.5rem 2rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
+    .footer-links { display: flex; gap: 1.5rem; justify-content: center; margin-top: .75rem; flex-wrap: wrap; }
+
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      .video-container { max-width: 280px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">⏱ <span>Departure</span> Countdown</div>
+  <div class="nav-links">
+    <a href="#demo">Demo</a>
+    <a href="#features">Features</a>
+    <a href="#hardware">Hardware</a>
+    <a href="#how">How it works</a>
+    <a href="#start">Get started</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="badge">ESP32-S3 · NS API · FreeRTOS</div>
+  <h1>Never miss your<br><em>train</em> again.</h1>
+  <p>A real-time departure countdown that tells you exactly when to leave home — live from the Dutch Railways API, shown on a dot-matrix display.</p>
+  <div class="cta-group">
+    <a class="btn btn-primary" href="https://github.com/kamioon/departure-countdown">
+      <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      View on GitHub
+    </a>
+    <a class="btn btn-secondary" href="https://youtube.com/shorts/pDI5CvjXEfk?feature=share" target="_blank">
+      <svg height="16" viewBox="0 0 24 24" width="16" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+      Watch Demo
+    </a>
+  </div>
+</div>
+
+<!-- DEMO -->
+<section id="demo">
+  <div class="section-inner">
+    <h2>See it in action</h2>
+    <p class="section-sub">Showing the live countdown, urgent mode animation, and Walk / Bike alternation.</p>
+    <div class="demo-wrap">
+      <div class="video-container">
+        <iframe src="https://www.youtube.com/embed/pDI5CvjXEfk"
+          title="Smart Departure Countdown demo"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+      </div>
+      <div class="photos">
+        <img src="../assets/images/demo_image_01.jpg" alt="Device photo 1" />
+        <img src="../assets/images/demo_image_02.jpg" alt="Device photo 2" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-inner">
+    <h2>Features</h2>
+    <p class="section-sub">Everything runs on the device — no cloud backend, no app required.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">⏱</div>
+        <h3>Live MM:SS countdown</h3>
+        <p>Counts down to your leave time, updated every second. Automatic DST handling for Amsterdam timezone.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🚶🚲</div>
+        <h3>Walk &amp; Bike modes</h3>
+        <p>Alternates between Walk and Bike countdowns every 5 seconds. Switch modes instantly with one button or via the web UI.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔴</div>
+        <h3>Urgent animation</h3>
+        <p>Under 60 seconds to leave: animated walk or cycle icon replaces the destination and the timer flashes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3>Non-blocking fetch</h3>
+        <p>NS API is polled every 2 minutes on a FreeRTOS background task — the display never freezes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🌐</div>
+        <h3>Built-in web UI</h3>
+        <p>Configure everything from any browser on your local network. No app, no reflash needed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔌</div>
+        <h3>REST API</h3>
+        <p>CORS-enabled JSON endpoints for Home Assistant, Node-RED, or any smarthome platform.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Secure credentials</h3>
+        <p>WiFi and NS API key stored in ESP32 NVS flash — never hardcoded in source.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧪</div>
+        <h3>Unit tests</h3>
+        <p>Full test suite runs on your desktop with <code>pio test -e native</code> — no hardware required.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HARDWARE -->
+<section id="hardware">
+  <div class="section-inner">
+    <h2>Hardware</h2>
+    <p class="section-sub">Minimal build — just three parts to get started.</p>
+    <div class="hw-cols">
+      <div class="hw-box">
+        <h3>Required</h3>
+        <ul class="hw-list">
+          <li>
+            ESP32-S3-DevKitC-1
+            <span class="muted">— dual-core 240 MHz, built-in WiFi</span>
+          </li>
+          <li>
+            MAX7219 FC-16 4×(8×8) × 2
+            <span class="muted">— chained dot-matrix display</span>
+          </li>
+          <li>
+            USB 5 V power supply
+          </li>
+        </ul>
+      </div>
+      <div class="hw-box optional">
+        <h3>Optional</h3>
+        <ul class="hw-list">
+          <li>Passive buzzer — audible leave alert</li>
+          <li>DS3231 RTC — time backup during WiFi outages</li>
+          <li>Rotary encoder + 3 buttons — on-device control</li>
+          <li>RGB LED — visual status indicator</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="section-inner">
+    <h2>How it works</h2>
+    <p class="section-sub">From boot to countdown in under 30 seconds.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-line"></div>
+        <div class="step-body">
+          <h3>Connect &amp; sync</h3>
+          <p>On boot the ESP32 connects to WiFi, syncs time via NTP (Amsterdam TZ, DST-aware), and starts the async web server.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-line"></div>
+        <div class="step-body">
+          <h3>Fetch departures</h3>
+          <p>A FreeRTOS background task polls the NS Reisinformatie API every 2 minutes and caches up to 10 upcoming departures.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-line"></div>
+        <div class="step-body">
+          <h3>Calculate leave time</h3>
+          <p>Every second: <code>leave time = departure − travel time − buffer</code>. Uses the next valid, uncancelled train on your planned schedule.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-line"></div>
+        <div class="step-body">
+          <h3>Display &amp; alert</h3>
+          <p>The LED matrix shows destination · countdown · mode icon. At &lt;60 s an animated icon appears. Buzzer and RGB LED fire at configurable thresholds.</p>
+        </div>
+      </div>
+    </div>
+
+    <br><br>
+    <div class="infographic-wrap">
+      <img src="../assets/images/info_graphic.png" alt="System infographic" />
+    </div>
+  </div>
+</section>
+
+<!-- GET STARTED -->
+<section id="start">
+  <div class="section-inner">
+    <h2>Get started</h2>
+    <p class="section-sub">You need PlatformIO and a free NS API key — that's it.</p>
+
+    <div class="code-block">
+      <span class="comment"># 1. Clone the repo</span><br>
+      git clone https://github.com/kamioon/departure-countdown.git<br>
+      cd departure-countdown<br><br>
+      <span class="comment"># 2. Flash to ESP32-S3</span><br>
+      pio run -e esp32-s3-devkitc-1 --target upload<br><br>
+      <span class="comment"># 3. Follow the Serial prompts to enter WiFi + NS API key</span><br>
+      pio device monitor<br><br>
+      <span class="comment"># 4. Open the web UI in your browser</span><br>
+      http://&lt;device-ip&gt;/
+    </div>
+
+    <br>
+    <p style="color: var(--muted); font-size: .9rem;">
+      Get a free NS API key at
+      <a href="https://apiportal.ns.nl/" target="_blank">apiportal.ns.nl</a>
+      — subscribe to <strong>Reisinformatie API</strong>.
+    </p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>Smart Departure Countdown — ESP32-S3 + NS API</div>
+  <div class="footer-links">
+    <a href="https://github.com/kamioon/departure-countdown" target="_blank">GitHub</a>
+    <a href="https://github.com/kamioon/departure-countdown/blob/main/README.md" target="_blank">README</a>
+    <a href="https://apiportal.ns.nl/" target="_blank">NS API</a>
+    <a href="https://github.com/kamioon/departure-countdown/blob/main/LICENSE" target="_blank">CC BY-NC 4.0</a>
+  </div>
+</footer>
+
+</body>
+</html>
