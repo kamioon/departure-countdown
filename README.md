@@ -10,17 +10,17 @@ Supports Walk, Bike, and Bus travel modes so the countdown automatically adjusts
 
 <div align="center">
 
-<a href="https://youtube.com/shorts/pDI5CvjXEfk?feature=share">
-  <img src="https://img.youtube.com/vi/pDI5CvjXEfk/maxresdefault.jpg" width="540" alt="Watch demo on YouTube" />
+<a href="https://youtube.com/shorts/lqUtC60OAP4?feature=share">
+  <img src="https://img.youtube.com/vi/lqUtC60OAP4/maxresdefault.jpg" width="540" alt="Watch demo on YouTube" />
 </a>
 
 <sub>▶ &nbsp;Click to watch on YouTube</sub>
 
-<br><br>
+<br>
 
-<img src="assets/images/demo_image_01.jpg" height="260" alt="Device photo 1" />
-&nbsp;&nbsp;&nbsp;
 <img src="assets/images/demo_image_02.jpg" height="260" alt="Device photo 2" />
+&nbsp;&nbsp;&nbsp;
+<img src="assets/images/demo_image_03.jpg" height="260" alt="Device photo 2" />
 
 </div>
 
